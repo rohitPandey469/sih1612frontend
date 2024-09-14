@@ -10,8 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@turf/turf": "^7.1.0",
+    "leaflet": "^1.9.4",
+    "leaflet-draw": "^1.0.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-leaflet": "^4.2.1",
+    "react-leaflet-draw": "^0.20.4",
     "react-router-dom": "^6.26.2"
   },
   "devDependencies": {

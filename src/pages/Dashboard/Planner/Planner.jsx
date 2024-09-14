@@ -8,10 +8,11 @@ Working: Display current routes and allow the user to add new routes with basic 
 Minimal Route Metrics Panel:
 Show only the most critical data points, such as congestion and service coverage percentages.
  */
-const Planner = () => {
-  return (
-    <div>Planner</div>
-  )
-}
 
-export default Planner
+import MapComponent from "./components/MapComponent/MapComponent";
+
+const Planner = () => {
+  return <MapComponent />;
+};
+
+export default Planner;
