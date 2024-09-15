@@ -7,62 +7,20 @@ import {
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-draw/dist/leaflet.draw.css";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EditControl } from "react-leaflet-draw";
 import osm from "./osm-providers";
 import * as turf from "@turf/turf";
 
-const bufferDistance = 0.5; //km
-
-//city boundary
-const cityBoundary = [
-  [-122.5, 37.7],
-  [-122.5, 37.85],
-  [-122.35, 37.85],
-  [-122.35, 37.7],
-  [-122.5, 37.7],
-];
-
-// example rotes data {latitude, longtitude}
-const routes = [
-  {
-    id: 1,
-    name: "Route 1",
-    coordinates: [
-      [37.7749, -122.4194], // San Francisco
-      [37.7849, -122.4094], // Stop
-      [37.7949, -122.3994], // Stop
-      [37.8049, -122.3894], // End Point
-    ],
-    color: "blue",
-  },
-  {
-    id: 2,
-    name: "Route 2",
-    coordinates: [
-      [37.8049, -122.3894], // Start Point
-      [37.8149, -122.3794], // Stop
-      [37.8249, -122.3694], // Stop
-      [37.8349, -122.3594], // End Point
-    ],
-    color: "green",
-  },
-  {
-    id: 3,
-    name: "Route 3",
-    coordinates: [
-      [37.7749, -122.4194], // Start Point
-      [37.7649, -122.4294], // Stop
-      [37.7549, -122.4394], // End Point
-    ],
-    color: "red",
-  },
-];
-
-const MapComponent = () => {
+const MapComponent = ({
+  routes,
+  bufferDistance,
+  cityBoundary,
+  highlightedRoute,
+}) => {
   const mapRef = useRef();
   const [existingRoutes, setExistingRoutes] = useState(routes); //keep on pulling data from backend
-  const [highlightedRoutes, setHighlightedRoutes] = useState([]);
+  const [highlightedRoutes, setHighlightedRoutes] = useState(highlightedRoute);
   const [coverage, setCoverage] = useState(null);
   const [serviceCoveragePercentage, setServiceCoveragePercentage] = useState(0);
 
@@ -173,10 +131,11 @@ const MapComponent = () => {
     console.log("Updated Routes : ", updatedRoutes);
   };
 
-  // Trigger the coverage calculation when routes change
-  useState(() => {
-    calculateCoverage();
-  }, [existingRoutes]);
+  // // Trigger the coverage calculation when routes change
+  // useState(() => {
+  //   calculateCoverage();
+  // }, [existingRoutes]);
+
 
   return (
     <MapContainer
