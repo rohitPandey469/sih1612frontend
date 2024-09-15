@@ -1,12 +1,29 @@
-import { FeatureGroup, MapContainer, Polyline, TileLayer } from "react-leaflet";
+import {
+  FeatureGroup,
+  MapContainer,
+  Polygon,
+  Polyline,
+  TileLayer,
+} from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-draw/dist/leaflet.draw.css";
 import { useRef, useState } from "react";
 import { EditControl } from "react-leaflet-draw";
 import osm from "./osm-providers";
-import * as turf from "@turf/turf"
+import * as turf from "@turf/turf";
 
-// example data
+const bufferDistance = 0.5; //km
+
+//city boundary
+const cityBoundary = [
+  [-122.5, 37.7],
+  [-122.5, 37.85],
+  [-122.35, 37.85],
+  [-122.35, 37.7],
+  [-122.5, 37.7],
+];
+
+// example rotes data {latitude, longtitude}
 const routes = [
   {
     id: 1,
@@ -44,8 +61,58 @@ const routes = [
 
 const MapComponent = () => {
   const mapRef = useRef();
-  const [mapRoutes, setMapRoutes] = useState(routes);
+  const [existingRoutes, setExistingRoutes] = useState(routes); //keep on pulling data from backend
   const [highlightedRoutes, setHighlightedRoutes] = useState([]);
+  const [coverage, setCoverage] = useState(null);
+  const [serviceCoveragePercentage, setServiceCoveragePercentage] = useState(0);
+
+  // Helper - check for overlaps
+  const checkOverlap = (newRouteCoords) => {
+    const newRouteLine = turf.lineString(newRouteCoords);
+    const overlappingRoutes = existingRoutes.filter((route) => {
+      const existingRouteLine = turf.lineString(route.coordinates);
+
+      const isOverlap = turf.booleanOverlap(newRouteLine, existingRouteLine);
+      const isIntersect =
+        turf.lineIntersect(newRouteLine, existingRouteLine).features.length > 0;
+
+      return isOverlap || isIntersect;
+    });
+
+    return overlappingRoutes;
+  };
+
+  // Helper - calculate service coverage
+  const calculateCoverage = () => {
+    const cityPolygon = turf.polygon([cityBoundary]);
+
+    // Create a multiPolygon for the route buffers
+    const buffers = existingRoutes.map((route) => {
+      const routeLine = turf.lineString(route.coordinates);
+      return turf.buffer(routeLine, bufferDistance, { units: "kilometers" });
+    });
+
+    const multiPolygon = turf.featureCollection(buffers);
+
+    // Calculate the intersection of the buffers with the city boundary
+    const intersection = turf.intersect(multiPolygon, cityPolygon);
+    console.log("City Polygon:", cityPolygon);
+    console.log("Route Buffers:", multiPolygon);
+    console.log("Intersection:", intersection);
+    if (intersection) {
+      // Calculate the area covered by the routes
+      const coverageArea = turf.area(intersection);
+      const cityArea = turf.area(cityPolygon);
+
+      // Calculate the percentage of coverage
+      const percentage = (coverageArea / cityArea) * 100;
+      setServiceCoveragePercentage(percentage.toFixed(2));
+      setCoverage(intersection);
+    } else {
+      setServiceCoveragePercentage(0);
+      setCoverage(null);
+    }
+  };
 
   // Add
   const onCreate = (e) => {
@@ -55,27 +122,36 @@ const MapComponent = () => {
       latlng[0],
     ]);
 
-    // Detect opverlap and populate the highlighted Route state
-    const newRouteLine = turf.lineString(latlngs)
+    // Detect opverlaps
+    const overlappingRoutes = checkOverlap(latlngs);
+    console.log("Overlapping Routes :", overlappingRoutes);
 
-    const newId = mapRoutes.length + 1;
-    const newRouteObj = {
-      id: newId,
-      name: `Route ${newId}`,
-      coordinates: latlngs,
-      color: "blue",
-    };
+    // Handle Overlaps
+    if (overlappingRoutes.length > 0) {
+      setHighlightedRoutes(overlappingRoutes);
+      console.log("Overlap detected with routes : ", overlappingRoutes);
+      // toast.error("Overlapping routes")
+    } else {
+      const newId = existingRoutes.length + 1;
+      const newRouteObj = {
+        id: newId,
+        name: `Route ${newId}`,
+        coordinates: latlngs,
+        color: "blue",
+      };
 
-    setMapRoutes([...mapRoutes, newRouteObj]);
-    ////////////Send the changes to the backend
-    console.log("Newly Created Routes : ", [...mapRoutes, newRouteObj]);
+      setExistingRoutes([...existingRoutes, newRouteObj]);
+      ////////////Send the changes to the backend
+      // toast.success("New Route Created Successfully")
+      console.log("Newly Created Routes : ", [...existingRoutes, newRouteObj]);
+    }
   };
 
   // Edit
   const onEdit = (e) => {
     //****************Problem**********///
     const editedLayers = e.layers;
-    let updatedRoutes = [...mapRoutes];
+    let updatedRoutes = [...existingRoutes];
 
     editedLayers.eachLayer((layer) => {
       const updatedRoute = layer.toGeoJSON();
@@ -93,9 +169,14 @@ const MapComponent = () => {
       }
     });
 
-    setMapRoutes(updatedRoutes);
+    setExistingRoutes(updatedRoutes);
     console.log("Updated Routes : ", updatedRoutes);
   };
+
+  // Trigger the coverage calculation when routes change
+  useState(() => {
+    calculateCoverage();
+  }, [existingRoutes]);
 
   return (
     <MapContainer
@@ -124,9 +205,41 @@ const MapComponent = () => {
         url={osm.openstreetmap.url}
       />
 
-      {routes.map((route, idx) => (
-        <Polyline key={idx} positions={route.coordinates} color={route.color} />
+      <Polygon positions={cityBoundary} color="black" />
+
+      {existingRoutes.map((route, idx) => (
+        <Polyline
+          key={idx}
+          positions={route.coordinates}
+          color={route.color}
+          opacity={0.7}
+        />
       ))}
+      {highlightedRoutes.map((route, idx) => (
+        <Polyline
+          key={`highlighted-${idx}`}
+          positions={route.coordinates}
+          color="#FFD700"
+          weight={5}
+          opacity={1}
+          dashArray="5,10"
+          dashOffset="5"
+          shadowBlur={15}
+          shadowColor="#FFD700"
+        />
+      ))}
+
+      {/* {coverage && (
+        <Polygon
+          positions={coverage.geometry.coordinates[0]}
+          color="orange"
+          fillOpacity={0.5}
+        />
+      )}
+
+      <div className="service-coverage">
+        <h4>Service Coverage: {serviceCoveragePercentage}%</h4>
+      </div> */}
     </MapContainer>
   );
 };
